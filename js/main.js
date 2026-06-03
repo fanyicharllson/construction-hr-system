@@ -48,3 +48,8 @@ const currentYear = document.getElementById('site-year');
 if (currentYear) {
     currentYear.textContent = new Date().getFullYear();
 }
+
+// Print / PDF export
+document.querySelectorAll('.js-print').forEach(btn => {
+    btn.addEventListener('click', () => window.print());
+});
