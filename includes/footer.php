@@ -1,6 +1,7 @@
 <?php
 // includes/footer.php
 ?>
+        </div>
     </main>
     <footer class="site-footer">
         <div class="container-fluid px-4 px-lg-5">
@@ -44,7 +45,7 @@
             </div>
         </div>
     </footer>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-Ywp8j2l0J5nqA3JdQ9g3b6L2QmLk3Lx5g8Qy5jF7x5n6M0WwPzG8o3Z0QX3pL2gA" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc4s9bIOgUxi8T/jzmg+ADGZJM0i3EfzA5bQSlD0hd" crossorigin="anonymous"></script>
     <script src="/js/main.js"></script>
 </body>
 </html>

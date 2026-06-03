@@ -81,3 +81,4 @@ $isPrivilegedUser = in_array($currentRole, ['admin', 'super_admin'], true);
         </div>
     </header>
     <main class="site-main">
+        <div class="inner-wrap">
