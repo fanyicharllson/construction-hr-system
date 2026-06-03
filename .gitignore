@@ -1,0 +1,56 @@
+
+Also create a `.gitignore` file:
+
+```gitignore
+# .gitignore
+# Dependencies
+/vendor/
+/node_modules/
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+error_log
+
+# Database
+*.sqlite
+*.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Composer
+composer.phar
+composer.lock
+
+# Docker
+docker-compose.override.yml
+
+# Temp files
+*.tmp
+*.temp
+.cache/
+
+# Uploads
+/uploads/
+/temp/
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Configuration files with sensitive data
+config/database.local.php
+config/credentials.php

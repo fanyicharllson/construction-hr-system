@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  web:
+    image: php:8.1-apache
+    container_name: construction_hr_web
+    ports:
+      - "8080:80"
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASS: root
+      DB_NAME: construction_hr
+    volumes:
+      - ./:/var/www/html/
+    depends_on:
+      - db
+    working_dir: /var/www/html
+    command: >
+      bash -c "docker-php-ext-install mysqli && 
+               a2enmod rewrite &&
+               apache2-foreground"
+
+  db:
+    image: mysql:8.0
+    container_name: construction_hr_db
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: construction_hr
+      MYSQL_USER: user
+      MYSQL_PASSWORD: user123
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./sql:/docker-entrypoint-initdb.d
+    command: --default-authentication-plugin=mysql_native_password
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: construction_hr_phpmyadmin
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+    depends_on:
+      - db
+
+volumes:
+  db_data:
