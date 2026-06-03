@@ -2,106 +2,121 @@
 // login.php
 require_once 'config/database.php';
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    if(isset($_POST['forgot_password'])) {
-        $email = $conn->real_escape_string($_POST['email']);
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['forgot_password'])) {
+        $email = trim($_POST['email']);
         $token = bin2hex(random_bytes(32));
         $expiry = date('Y-m-d H:i:s', strtotime('+1 hour'));
-        
-        $sql = "UPDATE users SET reset_token = ?, reset_expiry = ? WHERE email = ?";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("sss", $token, $expiry, $email);
-        
-        if($stmt->execute() && $stmt->affected_rows > 0) {
-            // In a real application, send email here
-            $success = "Password reset link has been sent to your email! (Demo: Token: " . $token . ")";
+
+        $stmt = $conn->prepare('UPDATE users SET reset_token = ?, reset_expiry = ? WHERE email = ?');
+        $stmt->bind_param('sss', $token, $expiry, $email);
+
+        if ($stmt->execute() && $stmt->affected_rows > 0) {
+            $success = 'Password recovery request created. Use the token in your email workflow.';
         } else {
-            $error = "Email not found!";
+            $error = 'Email not found.';
         }
     } else {
-        $username = $conn->real_escape_string($_POST['username']);
+        $username = trim($_POST['username']);
         $password = $_POST['password'];
-        
-        $sql = "SELECT * FROM users WHERE username = ?";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("s", $username);
+
+        $stmt = $conn->prepare('SELECT id, username, password, role FROM users WHERE username = ? LIMIT 1');
+        $stmt->bind_param('s', $username);
         $stmt->execute();
         $result = $stmt->get_result();
-        
-        if($result->num_rows == 1) {
+
+        if ($result && $result->num_rows === 1) {
             $user = $result->fetch_assoc();
-            if(password_verify($password, $user['password'])) {
-                $_SESSION['user_id'] = $user['id'];
+
+            if (password_verify($password, $user['password'])) {
+                $_SESSION['user_id'] = (int) $user['id'];
                 $_SESSION['username'] = $user['username'];
                 $_SESSION['role'] = $user['role'];
-                
-                header("Location: dashboard.php");
+
+                header('Location: dashboard.php');
                 exit();
-            } else {
-                $error = "Invalid password!";
             }
+
+            $error = 'Invalid password.';
         } else {
-            $error = "Username not found!";
+            $error = 'Username not found.';
         }
     }
 }
+
+$pageTitle = 'CIMEN Limited | Login';
+include 'includes/header.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - BuildMaster Construction</title>
-    <link rel="stylesheet" href="css/style.css">
-</head>
-<body>
-    <div class="container">
-        <h2>Employee Login</h2>
+
+<div class="auth-layout animate-rise">
+    <aside class="auth-aside">
+        <div>
+            <div class="eyebrow">Secure access</div>
+            <h2>Sign in to the CIMEN HR suite.</h2>
+            <p class="mt-3 mb-0">Employees use this portal to access their records, while privileged users manage departments and workforce data.</p>
+        </div>
+
+        <div class="department-summary">
+            <div class="mini-card">
+                <strong class="d-block text-white mb-2">Admin controls</strong>
+                <span>Restricted department access and employee management.</span>
+            </div>
+            <div class="mini-card">
+                <strong class="d-block text-white mb-2">Password recovery</strong>
+                <span>Recovery token flow is prepared for email-based reset handling.</span>
+            </div>
+        </div>
+    </aside>
+
+    <section class="auth-card">
+        <div class="auth-heading">
+            <div class="eyebrow">Employee login</div>
+            <h2>Welcome back.</h2>
+            <p>Use your username and password to continue.</p>
+        </div>
+
         <?php if(isset($error)): ?>
-            <div class="alert alert-error"><?php echo $error; ?></div>
+            <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
         <?php endif; ?>
         <?php if(isset($success)): ?>
-            <div class="alert alert-success"><?php echo $success; ?></div>
+            <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
         <?php endif; ?>
-        
-        <form method="POST" action="">
-            <div class="form-group">
-                <label>Username:</label>
-                <input type="text" name="username" required>
+
+        <form method="POST" action="" class="mb-3">
+            <div class="mb-3">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" id="username" name="username" class="form-control" required>
             </div>
-            
-            <div class="form-group">
-                <label>Password:</label>
-                <input type="password" name="password" required>
+
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" id="password" name="password" class="form-control" required>
             </div>
-            
-            <button type="submit" class="btn">Login</button>
+
+            <button type="submit" class="btn btn-accent w-100 py-3">Login</button>
         </form>
-        
-        <div style="text-align: center; margin-top: 15px;">
-            <a href="#" onclick="showForgotPassword()">Forgot Password?</a>
+
+        <button class="btn btn-outline-light w-100 mb-3" type="button" data-bs-toggle="collapse" data-bs-target="#forgotPasswordForm" aria-expanded="false" aria-controls="forgotPasswordForm">
+            Forgot password
+        </button>
+
+        <div class="collapse" id="forgotPasswordForm">
+            <div class="surface-card p-3 p-lg-4">
+                <form method="POST" action="">
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email address</label>
+                        <input type="email" id="email" name="email" class="form-control" required>
+                    </div>
+                    <button type="submit" name="forgot_password" class="btn btn-outline-secondary w-100">Send recovery link</button>
+                </form>
+            </div>
         </div>
-        
-        <div id="forgot-form" style="display: none; margin-top: 20px;">
-            <form method="POST" action="">
-                <div class="form-group">
-                    <label>Enter your email for password recovery:</label>
-                    <input type="email" name="email" required>
-                </div>
-                <button type="submit" name="forgot_password" class="btn btn-secondary">Send Recovery Email</button>
-            </form>
+
+        <div class="text-center mt-4">
+            <p class="mb-2 helper-copy">New employee access</p>
+            <a href="register.php" class="btn btn-outline-light">Create an account</a>
         </div>
-        
-        <p style="text-align: center; margin-top: 20px;">
-            <a href="register.php" class="btn" style="display: inline-block; text-decoration: none;">Sign Up</a>
-        </p>
-    </div>
-    
-    <script>
-        function showForgotPassword() {
-            var form = document.getElementById('forgot-form');
-            form.style.display = form.style.display === 'none' ? 'block' : 'none';
-        }
-    </script>
-</body>
-</html>
+    </section>
+</div>
+
+<?php include 'includes/footer.php'; ?>

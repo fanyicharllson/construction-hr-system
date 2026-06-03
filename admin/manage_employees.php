@@ -1,209 +1,235 @@
 <?php
-// admin/manage_employees.php
 require_once '../config/database.php';
 
 if (!isset($conn) || !($conn instanceof mysqli)) {
     die('Database connection is not available.');
 }
 
-function db_escape(mysqli $conn, $value) {
-    return $conn->real_escape_string((string) $value);
-}
-
-// Check if user is admin
-if(!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../login.php");
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['admin', 'super_admin'], true)) {
+    header('Location: ../login.php');
     exit();
 }
 
-// Handle different operations
-$action = isset($_GET['action']) ? $_GET['action'] : '';
-$id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+$pageTitle = 'CIMEN Limited | Manage Employees';
 
-// Handle employee update
-if(isset($_POST['update'])) {
-    $id = intval($_POST['id']);
-    $employee_id = db_escape($conn, $_POST['employee_id']);
-    $full_name = db_escape($conn, $_POST['full_name']);
-    $position = db_escape($conn, $_POST['position']);
-    $department_id = intval($_POST['department_id']);
-    $email = db_escape($conn, $_POST['email']);
-    $phone = db_escape($conn, $_POST['phone']);
-    $hire_date = db_escape($conn, $_POST['hire_date']);
-    $salary = floatval($_POST['salary']);
-    $status = db_escape($conn, $_POST['status']);
-    
-    $sql = "UPDATE employees SET employee_id='$employee_id', full_name='$full_name', position='$position', 
-            department_id=$department_id, email='$email', phone='$phone', hire_date='$hire_date', 
-            salary=$salary, status='$status' WHERE id=$id";
-    
-    if($conn->query($sql)) {
-        header("Location: manage_employees.php?msg=updated");
+$action = $_GET['action'] ?? '';
+$employeeId = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+
+$departments = [];
+$departmentResult = $conn->query('SELECT id, name FROM departments ORDER BY name');
+if ($departmentResult) {
+    while ($department = $departmentResult->fetch_assoc()) {
+        $departments[] = $department;
+    }
+}
+
+if (isset($_POST['add'])) {
+    $stmt = $conn->prepare('INSERT INTO employees (employee_id, full_name, position, department_id, email, phone, hire_date, salary, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    $stmt->bind_param(
+        'sssisssds',
+        $_POST['employee_id'],
+        $_POST['full_name'],
+        $_POST['position'],
+        $_POST['department_id'],
+        $_POST['email'],
+        $_POST['phone'],
+        $_POST['hire_date'],
+        $_POST['salary'],
+        $_POST['status']
+    );
+
+    if ($stmt->execute()) {
+        header('Location: manage_employees.php?msg=added');
         exit();
     }
 }
 
-// Handle employee deletion
-if(isset($_GET['delete'])) {
-    $id = intval($_GET['delete']);
-    $conn->query("DELETE FROM employees WHERE id=$id");
-    header("Location: manage_employees.php?msg=deleted");
+if (isset($_POST['update'])) {
+    $stmt = $conn->prepare('UPDATE employees SET employee_id = ?, full_name = ?, position = ?, department_id = ?, email = ?, phone = ?, hire_date = ?, salary = ?, status = ? WHERE id = ?');
+    $stmt->bind_param(
+        'sssisssdsi',
+        $_POST['employee_id'],
+        $_POST['full_name'],
+        $_POST['position'],
+        $_POST['department_id'],
+        $_POST['email'],
+        $_POST['phone'],
+        $_POST['hire_date'],
+        $_POST['salary'],
+        $_POST['status'],
+        $_POST['id']
+    );
+
+    if ($stmt->execute()) {
+        header('Location: manage_employees.php?msg=updated');
+        exit();
+    }
+}
+
+if (isset($_GET['delete'])) {
+    $deleteStmt = $conn->prepare('DELETE FROM employees WHERE id = ?');
+    $deleteId = (int) $_GET['delete'];
+    $deleteStmt->bind_param('i', $deleteId);
+    $deleteStmt->execute();
+    header('Location: manage_employees.php?msg=deleted');
     exit();
 }
 
-// Get all employees with department names
-$sql = "SELECT e.*, d.name as department_name 
-        FROM employees e 
-        LEFT JOIN departments d ON e.department_id = d.id 
-        ORDER BY e.employee_id";
-$result = $conn->query($sql);
+$employeesQuery = $conn->query('SELECT e.*, d.name AS department_name FROM employees e LEFT JOIN departments d ON e.department_id = d.id ORDER BY e.employee_id');
+$employees = $employeesQuery ? $employeesQuery->fetch_all(MYSQLI_ASSOC) : [];
 
-// Get departments for dropdown
-$depts_result = $conn->query("SELECT * FROM departments ORDER BY name");
-
-// Get single employee for editing
-$edit_employee = null;
-if($action == 'edit' && $id > 0) {
-    $edit_sql = "SELECT * FROM employees WHERE id=$id";
-    $edit_result = $conn->query($edit_sql);
-    $edit_employee = $edit_result->fetch_assoc();
+$editEmployee = null;
+if ($action === 'edit' && $employeeId > 0) {
+    $editStmt = $conn->prepare('SELECT * FROM employees WHERE id = ? LIMIT 1');
+    $editStmt->bind_param('i', $employeeId);
+    $editStmt->execute();
+    $editResult = $editStmt->get_result();
+    $editEmployee = $editResult->fetch_assoc();
 }
 
 include '../includes/header.php';
 ?>
 
-<div class="container" style="max-width: 1400px;">
-    <h2>Manage All Employees</h2>
-    
-    <?php if(isset($_GET['msg'])): ?>
-        <div class="alert alert-success">
-            <?php 
-                if($_GET['msg'] == 'updated') echo "Employee updated successfully!";
-                if($_GET['msg'] == 'deleted') echo "Employee deleted successfully!";
-                if($_GET['msg'] == 'added') echo "Employee added successfully!";
+<section class="page-card animate-rise">
+    <div class="page-heading">
+        <div class="eyebrow">Employee administration</div>
+        <h2>Manage the full employee register.</h2>
+        <p>Add, update, and remove employees from the central HR table. Print the table to save a PDF if needed.</p>
+    </div>
+
+    <?php if (isset($_GET['msg'])): ?>
+        <div class="alert alert-success no-print">
+            <?php
+                if ($_GET['msg'] === 'updated') echo 'Employee updated successfully.';
+                if ($_GET['msg'] === 'deleted') echo 'Employee deleted successfully.';
+                if ($_GET['msg'] === 'added') echo 'Employee added successfully.';
             ?>
         </div>
     <?php endif; ?>
-    
-    <!-- Add Employee Form -->
-    <div style="background: var(--light); padding: 20px; border-radius: 8px; margin-bottom: 30px;">
-        <h3><?php echo $edit_employee ? 'Edit Employee' : 'Add New Employee'; ?></h3>
+
+    <div class="page-actions no-print">
+        <button type="button" class="btn btn-accent js-print">Export / Print PDF</button>
+        <?php if ($editEmployee): ?>
+            <a href="manage_employees.php" class="btn btn-outline-light">Cancel edit</a>
+        <?php endif; ?>
+    </div>
+
+    <div class="auth-card mb-4 no-print">
+        <div class="card-heading">
+            <h3><?php echo $editEmployee ? 'Edit employee' : 'Add employee'; ?></h3>
+            <p>Use the form to maintain the employee record set.</p>
+        </div>
+
         <form method="POST" action="">
-            <input type="hidden" name="id" value="<?php echo $edit_employee['id'] ?? ''; ?>">
-            
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
-                <div class="form-group">
-                    <label>Employee ID:</label>
-                    <input type="text" name="employee_id" value="<?php echo $edit_employee['employee_id'] ?? ''; ?>" required>
+            <input type="hidden" name="id" value="<?php echo htmlspecialchars($editEmployee['id'] ?? ''); ?>">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Employee ID</label>
+                    <input type="text" name="employee_id" class="form-control" value="<?php echo htmlspecialchars($editEmployee['employee_id'] ?? ''); ?>" required>
                 </div>
-                
-                <div class="form-group">
-                    <label>Full Name:</label>
-                    <input type="text" name="full_name" value="<?php echo $edit_employee['full_name'] ?? ''; ?>" required>
+                <div class="col-md-4">
+                    <label class="form-label">Full name</label>
+                    <input type="text" name="full_name" class="form-control" value="<?php echo htmlspecialchars($editEmployee['full_name'] ?? ''); ?>" required>
                 </div>
-                
-                <div class="form-group">
-                    <label>Position:</label>
-                    <input type="text" name="position" value="<?php echo $edit_employee['position'] ?? ''; ?>" required>
+                <div class="col-md-4">
+                    <label class="form-label">Position</label>
+                    <input type="text" name="position" class="form-control" value="<?php echo htmlspecialchars($editEmployee['position'] ?? ''); ?>" required>
                 </div>
-                
-                <div class="form-group">
-                    <label>Department:</label>
-                    <select name="department_id" required>
-                        <option value="">Select Department</option>
-                        <?php while($dept = $depts_result->fetch_assoc()): ?>
-                            <option value="<?php echo $dept['id']; ?>" 
-                                <?php echo ($edit_employee && $edit_employee['department_id'] == $dept['id']) ? 'selected' : ''; ?>>
-                                <?php echo $dept['name']; ?>
-                            </option>
-                        <?php endwhile; ?>
+                <div class="col-md-4">
+                    <label class="form-label">Department</label>
+                    <select name="department_id" class="form-select" required>
+                        <option value="">Select department</option>
+                        <?php foreach ($departments as $department): ?>
+                            <option value="<?php echo (int) $department['id']; ?>" <?php echo (($editEmployee['department_id'] ?? '') == $department['id']) ? 'selected' : ''; ?>><?php echo htmlspecialchars($department['name']); ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
-                
-                <div class="form-group">
-                    <label>Email:</label>
-                    <input type="email" name="email" value="<?php echo $edit_employee['email'] ?? ''; ?>" required>
+                <div class="col-md-4">
+                    <label class="form-label">Email</label>
+                    <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($editEmployee['email'] ?? ''); ?>" required>
                 </div>
-                
-                <div class="form-group">
-                    <label>Phone:</label>
-                    <input type="text" name="phone" value="<?php echo $edit_employee['phone'] ?? ''; ?>">
+                <div class="col-md-4">
+                    <label class="form-label">Phone</label>
+                    <input type="text" name="phone" class="form-control" value="<?php echo htmlspecialchars($editEmployee['phone'] ?? ''); ?>">
                 </div>
-                
-                <div class="form-group">
-                    <label>Hire Date:</label>
-                    <input type="date" name="hire_date" value="<?php echo $edit_employee['hire_date'] ?? ''; ?>" required>
+                <div class="col-md-4">
+                    <label class="form-label">Hire date</label>
+                    <input type="date" name="hire_date" class="form-control" value="<?php echo htmlspecialchars($editEmployee['hire_date'] ?? ''); ?>" required>
                 </div>
-                
-                <div class="form-group">
-                    <label>Salary:</label>
-                    <input type="number" step="0.01" name="salary" value="<?php echo $edit_employee['salary'] ?? ''; ?>" required>
+                <div class="col-md-4">
+                    <label class="form-label">Salary</label>
+                    <input type="number" step="0.01" name="salary" class="form-control" value="<?php echo htmlspecialchars($editEmployee['salary'] ?? ''); ?>" required>
                 </div>
-                
-                <div class="form-group">
-                    <label>Status:</label>
-                    <select name="status">
-                        <option value="active" <?php echo ($edit_employee && $edit_employee['status'] == 'active') ? 'selected' : ''; ?>>Active</option>
-                        <option value="inactive" <?php echo ($edit_employee && $edit_employee['status'] == 'inactive') ? 'selected' : ''; ?>>Inactive</option>
-                        <option value="on_leave" <?php echo ($edit_employee && $edit_employee['status'] == 'on_leave') ? 'selected' : ''; ?>>On Leave</option>
+                <div class="col-md-4">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="active" <?php echo (($editEmployee['status'] ?? '') === 'active') ? 'selected' : ''; ?>>Active</option>
+                        <option value="inactive" <?php echo (($editEmployee['status'] ?? '') === 'inactive') ? 'selected' : ''; ?>>Inactive</option>
+                        <option value="on_leave" <?php echo (($editEmployee['status'] ?? '') === 'on_leave') ? 'selected' : ''; ?>>On leave</option>
                     </select>
                 </div>
             </div>
-            
-            <button type="submit" name="<?php echo $edit_employee ? 'update' : 'add'; ?>" class="btn">
-                <?php echo $edit_employee ? 'Update Employee' : 'Add Employee'; ?>
-            </button>
-            
-            <?php if($edit_employee): ?>
-                <a href="manage_employees.php" class="btn" style="background: #95a5a6; text-decoration: none; margin-left: 10px;">Cancel Edit</a>
-            <?php endif; ?>
+
+            <div class="button-row mt-4">
+                <button type="submit" name="<?php echo $editEmployee ? 'update' : 'add'; ?>" class="btn btn-accent">
+                    <?php echo $editEmployee ? 'Update employee' : 'Add employee'; ?>
+                </button>
+            </div>
         </form>
     </div>
-    
-    <!-- Employees Table -->
-    <h3>Employee List</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Employee ID</th>
-                <th>Full Name</th>
-                <th>Position</th>
-                <th>Department</th>
-                <th>Email</th>
-                <th>Phone</th>
-                <th>Hire Date</th>
-                <th>Salary</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php while($row = $result->fetch_assoc()): ?>
-            <tr>
-                <td><?php echo $row['id']; ?></td>
-                <td><?php echo htmlspecialchars($row['employee_id']); ?></td>
-                <td><?php echo htmlspecialchars($row['full_name']); ?></td>
-                <td><?php echo htmlspecialchars($row['position']); ?></td>
-                <td><?php echo htmlspecialchars($row['department_name']); ?></td>
-                <td><?php echo htmlspecialchars($row['email']); ?></td>
-                <td><?php echo htmlspecialchars($row['phone']); ?></td>
-                <td><?php echo $row['hire_date']; ?></td>
-                <td>$<?php echo number_format($row['salary'], 2); ?></td>
-                <td>
-                    <span style="background: <?php echo $row['status'] == 'active' ? '#27ae60' : ($row['status'] == 'inactive' ? '#c0392b' : '#f39c12'); ?>; 
-                         color: white; padding: 3px 8px; border-radius: 4px;">
-                        <?php echo ucfirst($row['status']); ?>
-                    </span>
-                </td>
-                <td>
-                    <a href="?action=edit&id=<?php echo $row['id']; ?>" style="background: #3498db; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none;">Edit</a>
-                    <a href="?delete=<?php echo $row['id']; ?>" onclick="return confirm('Are you sure?')" style="background: #e74c3c; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; margin-left: 5px;">Delete</a>
-                </td>
-            </tr>
-            <?php endwhile; ?>
-        </tbody>
-    </table>
-</div>
+
+    <div class="table-card">
+        <div class="card-heading">
+            <h3>Employee list</h3>
+            <p>Records are arranged in a print-friendly table with the required data fields.</p>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Employee ID</th>
+                        <th>Full name</th>
+                        <th>Position</th>
+                        <th>Department</th>
+                        <th>Email</th>
+                        <th>Phone</th>
+                        <th>Hire date</th>
+                        <th>Salary</th>
+                        <th>Status</th>
+                        <th class="no-print">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($employees as $employee): ?>
+                        <tr>
+                            <td><?php echo (int) $employee['id']; ?></td>
+                            <td><?php echo htmlspecialchars($employee['employee_id']); ?></td>
+                            <td><?php echo htmlspecialchars($employee['full_name']); ?></td>
+                            <td><?php echo htmlspecialchars($employee['position']); ?></td>
+                            <td><?php echo htmlspecialchars($employee['department_name'] ?? ''); ?></td>
+                            <td><?php echo htmlspecialchars($employee['email']); ?></td>
+                            <td><?php echo htmlspecialchars($employee['phone']); ?></td>
+                            <td><?php echo htmlspecialchars($employee['hire_date']); ?></td>
+                            <td><?php echo number_format((float) $employee['salary'], 2); ?></td>
+                            <td>
+                                <span class="status-chip <?php echo $employee['status'] === 'active' ? 'status-active' : ($employee['status'] === 'inactive' ? 'status-inactive' : 'status-leave'); ?>">
+                                    <?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $employee['status']))); ?>
+                                </span>
+                            </td>
+                            <td class="no-print">
+                                <div class="action-row">
+                                    <a href="?action=edit&id=<?php echo (int) $employee['id']; ?>" class="btn btn-outline-light btn-sm">Edit</a>
+                                    <a href="?delete=<?php echo (int) $employee['id']; ?>" class="btn btn-outline-secondary btn-sm" data-confirm="Delete this employee?">Delete</a>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
 
 <?php include '../includes/footer.php'; ?>

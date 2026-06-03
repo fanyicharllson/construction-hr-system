@@ -9,12 +9,14 @@ CREATE TABLE IF NOT EXISTS users (
     home_address TEXT NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
     phone VARCHAR(20),
+    department_id INT NULL,
     username VARCHAR(50) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
-    role ENUM('admin', 'employee') DEFAULT 'employee',
+    role ENUM('super_admin', 'admin', 'employee') DEFAULT 'employee',
     reset_token VARCHAR(255),
     reset_expiry DATETIME,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (department_id) REFERENCES departments(id)
 );
 
 -- Departments table
@@ -53,8 +55,8 @@ INSERT INTO departments (name) VALUES
 ('Quality Control');
 
 -- Insert admin user (password: Admin@123)
-INSERT INTO users (full_name, home_address, email, phone, username, password, role) VALUES 
-('System Administrator', 'Main Office', 'admin@construction.com', '1234567890', 'admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin');
+INSERT INTO users (full_name, home_address, email, phone, department_id, username, password, role) VALUES 
+('System Administrator', 'Main Office', 'admin@construction.com', '1234567890', NULL, 'admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'super_admin');
 
 -- Insert sample employees
 INSERT INTO employees (employee_id, full_name, position, department_id, email, phone, hire_date, salary, status) VALUES

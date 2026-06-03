@@ -29,6 +29,7 @@ class Database {
     
     public function __construct() {
         $this->connect();
+        $this->ensureSchema();
     }
     
     private function connect() {
@@ -53,6 +54,16 @@ class Database {
 
         $message = 'Database connection failed after multiple attempts. Check DB_HOST, DB_PORT, DB_USER, DB_PASS, and DB_NAME, and make sure MySQL is running.';
         die($message . ' ' . $lastException->getMessage());
+    }
+
+    private function ensureSchema() {
+        $departmentColumn = $this->connection->query("SHOW COLUMNS FROM users LIKE 'department_id'");
+        if ($departmentColumn && $departmentColumn->num_rows === 0) {
+            $this->connection->query("ALTER TABLE users ADD COLUMN department_id INT NULL AFTER phone");
+        }
+
+        $this->connection->query("ALTER TABLE users MODIFY role ENUM('super_admin', 'admin', 'employee') DEFAULT 'employee'");
+        $this->connection->query("UPDATE users SET role = 'super_admin' WHERE username = 'admin' AND role = 'admin'");
     }
     
     public function getConnection() {

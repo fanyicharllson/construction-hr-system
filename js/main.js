@@ -12,40 +12,39 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     });
 });
 
-// Form validation helper
+// Lightweight client-side validation helper
 function validateForm(formId) {
     const form = document.getElementById(formId);
-    if(!form) return true;
-    
+    if (!form) {
+        return true;
+    }
+
     const inputs = form.querySelectorAll('input[required], textarea[required], select[required]');
     let isValid = true;
-    
+
     inputs.forEach(input => {
-        if(!input.value.trim()) {
-            input.style.borderColor = '#e74c3c';
+        if (!input.value.trim()) {
+            input.classList.add('is-invalid');
             isValid = false;
         } else {
-            input.style.borderColor = '#27ae60';
+            input.classList.remove('is-invalid');
+            input.classList.add('is-valid');
         }
     });
-    
+
     return isValid;
 }
 
-// Add loading state to buttons
-document.querySelectorAll('form').forEach(form => {
-    form.addEventListener('submit', function() {
-        const buttons = this.querySelectorAll('button[type="submit"]');
-        buttons.forEach(btn => {
-            btn.disabled = true;
-            btn.textContent = 'Processing...';
-        });
+document.querySelectorAll('[data-confirm]').forEach(element => {
+    element.addEventListener('click', function (event) {
+        const message = this.getAttribute('data-confirm') || 'Are you sure?';
+        if (!window.confirm(message)) {
+            event.preventDefault();
+        }
     });
 });
 
-// Dynamic year in footer
-const footer = document.querySelector('.footer');
-if(footer) {
-    const yearSpan = document.createElement('span');
-    yearSpan.textContent = new Date().getFullYear();
+const currentYear = document.getElementById('site-year');
+if (currentYear) {
+    currentYear.textContent = new Date().getFullYear();
 }
